@@ -1,0 +1,24 @@
+{
+  "name": "lnet",
+  "version": "0.0.1",
+  "description": "超级简单的网络库",
+  "main": "index.js",
+  "scripts": {
+    "test": "node ./test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BanKnight/lnet.git"
+  },
+  "keywords": [
+    "net",
+    "javascript",
+    "node"
+  ],
+  "author": "bansky",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/BanKnight/lnet/issues"
+  },
+  "homepage": "https://github.com/BanKnight/lnet#readme"
+}
