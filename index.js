@@ -2,6 +2,16 @@ const net = require('net');
 
 const lnet = module.exports = {}
 
+class LnetError extends Error
+{
+    constructor(code,message)
+    {
+        super(message)
+
+        this.code = code
+    }
+}
+
 function make_wait()
 {
     const wait = {}
@@ -15,18 +25,12 @@ function make_wait()
     return wait
 }
 
-function make_error(code,message)
-{
-    const err = new Error(message)
-
-    err.code = code 
-
-    return err
-}
-
 lnet.listen = async function(...args)
 {
-    const socket = net.createServer()
+    const socket = net.createServer({
+        allowHalfOpen:false,
+        pauseOnConnect:true,
+    })
 
     return new Promise((resolve,reject)=>
     {
@@ -86,7 +90,7 @@ class Server
     {
         this.socket.on("connection",(socket)=>
         {
-            this.datas.push(new Connection(socket))
+            this.datas.push(socket)
             if(this.wait)
             {
                 this.wait.resolve()
@@ -101,16 +105,27 @@ class Server
 
             if(this.wait)
             {
-                this.wait.reject(error)
+                this.wait.resolve()
                 this.wait = null
             }
 
             this.socket.close()
+
+            console.log("recv error event")
         })
 
         this.socket.on("close",()=>
         {
             this.socket.unref()
+
+            this.last_error = this.last_error || new LnetError("ERR_SOCKET_CLOSED","socket has been destroyed")
+            
+            if(this.wait)
+            {
+                this.wait.resolve()
+
+                this.wait = null
+            }
         })
     }
 
@@ -118,24 +133,37 @@ class Server
     {
         if(this.datas.length > 0)
         {
-            return this.datas.shift()
+            return this.fetch()
         }
 
         if(this.last_error)
         {
-            throw this.last_error
+            throw new LnetError(this.last_error.code,this.last_error.message)
         }
 
         if(this.socket.listening == false)
         {
-            throw make_error("ERR_SOCKET_CLOSED","socket is not listening")
+            this.last_error = new LnetError("ERR_SOCKET_CLOSED","socket is not listening")
+            throw this.last_error
         }
 
         this.wait = make_wait()
 
         await this.wait.real
 
-        return this.datas.shift()
+        if(this.last_error)
+        {
+            throw new LnetError(this.last_error.code,this.last_error.message)
+        }
+
+        return this.fetch()
+    }
+
+    fetch()
+    {
+        const socket = this.datas.shift()
+
+        return new Connection(socket)
     }
 
     close()
@@ -154,7 +182,6 @@ class Connection
         this.length = 0
         this.capacity = Infinity            //用于解决读到内存中的数据过大问题
         
-
         this.wait = null
         this.last_error = null
 
@@ -163,6 +190,8 @@ class Connection
 
     init()
     {
+        this.socket.resume()
+
         this.socket.on("data",(data)=>
         {
             this.datas.push([0,Buffer.from(data)])
@@ -186,14 +215,25 @@ class Connection
 
             if(this.wait)
             {
-                this.wait.reject(error)
+                this.wait.resolve()
                 this.wait = null
             }
+
+            console.log("recv error event")
         })
 
-        this.socket.on("close",()=>
+        this.socket.on("close",(had_error)=>
         {
             this.socket.unref()
+
+            this.last_error = this.last_error || new LnetError("ERR_SOCKET_CLOSED","socket has been destroyed")
+            
+            if(this.wait)
+            {
+                this.wait.resolve()
+
+                this.wait = null
+            }
         })
     }
 
@@ -209,16 +249,22 @@ class Connection
             throw this.last_error
         }
 
-        while(this.length == 0 ||(count > 0 && this.length < count)  )
+        while(this.length == 0 ||(count > 0 && this.length < count))
         {
             if(this.socket.destroyed) 
             {
-                throw make_error("ERR_SOCKET_CLOSED","socket has been destroyed")
+                this.last_error = make_error("ERR_SOCKET_CLOSED","socket has been destroyed")
+                throw this.last_error
             }
 
             this.wait = make_wait()
 
             await this.wait.real
+
+            if(this.last_error)
+            {
+                throw new LnetError(this.last_error.code,this.last_error.message)
+            }
         }
 
         if(count > 0)
