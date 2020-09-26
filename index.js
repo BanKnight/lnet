@@ -110,8 +110,6 @@ class Server
             }
 
             this.socket.close()
-
-            console.log("recv error event")
         })
 
         this.socket.on("close",()=>
@@ -218,8 +216,6 @@ class Connection
                 this.wait.resolve()
                 this.wait = null
             }
-
-            console.log("recv error event")
         })
 
         this.socket.on("close",(had_error)=>
