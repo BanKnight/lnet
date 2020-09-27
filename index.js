@@ -37,11 +37,10 @@ lnet.listen = async function(...args)
         socket.once("listening",()=>
         {
             socket.removeAllListeners()
-
             resolve(new Server(socket))
         })
 
-        socket.on("error",(error)=>
+        socket.once("error",(error)=>
         {
             socket.removeAllListeners()
             reject(error)
@@ -57,14 +56,13 @@ lnet.connect = async function(...args)
 
     return new Promise((resolve,reject)=>
     {
-        socket.on("connect",()=>
+        socket.once("connect",()=>
         {
             socket.removeAllListeners()
-
             resolve(new Connection(socket))
         })
 
-        socket.on("error",(error)=>
+        socket.once("error",(error)=>
         {
             socket.removeAllListeners()
             reject(error)
@@ -82,7 +80,6 @@ class Server
         this.wait = null
         this.last_error = null
         
-
         this.init()
     }
 
@@ -109,6 +106,7 @@ class Server
                 this.wait = null
             }
 
+            this.socket.unref()
             this.socket.close()
         })
 
@@ -121,7 +119,6 @@ class Server
             if(this.wait)
             {
                 this.wait.resolve()
-
                 this.wait = null
             }
         })
@@ -193,17 +190,17 @@ class Connection
         this.socket.on("data",(data)=>
         {
             this.datas.push([0,Buffer.from(data)])
+
+            this.length += data.byteLength
+            if(this.length > this.capacity)
+            {
+                this.socket.pause()
+            }
+
             if(this.wait)
             {
                 this.wait.resolve()
                 this.wait = null
-            }
-
-            this.length += data.byteLength
-
-            if(this.length > this.capacity)
-            {
-                this.socket.pause()
             }
         })
 
@@ -222,12 +219,9 @@ class Connection
         {
             this.socket.unref()
 
-            this.last_error = this.last_error || new LnetError("ERR_SOCKET_CLOSED","socket has been destroyed")
-            
             if(this.wait)
             {
                 this.wait.resolve()
-
                 this.wait = null
             }
         })
@@ -235,7 +229,8 @@ class Connection
 
     /**
      * count > 0:read count buffer
-     * < 0 : read any 
+     * == 0 : read any 
+     * < 0:all left
      * @param {读取的数量} count 
      */
     async read(count = 0)
@@ -249,8 +244,7 @@ class Connection
         {
             if(this.socket.destroyed) 
             {
-                this.last_error = make_error("ERR_SOCKET_CLOSED","socket has been destroyed")
-                throw this.last_error
+                throw new LnetError("ERR_SOCKET_CLOSED","socket has been destroyed")
             }
 
             this.wait = make_wait()
@@ -263,12 +257,12 @@ class Connection
             }
         }
 
-        if(count > 0)
+        if(count == 0)
         {
-            return this.fetch(count)
+            return this.fetch_any()
         }
 
-        return this.fetch_any()
+        return this.fetch(count)
     }
 
     send(buffer)
@@ -302,6 +296,11 @@ class Connection
 
     fetch(count)
     {
+        if(count < 0)
+        {
+            count = this.length
+        }
+
         let buffer = Buffer.allocUnsafe(count)
         let required = count
 
@@ -311,7 +310,7 @@ class Connection
             let left = first[1].byteLength - first[0]
             let copied = Math.min(left,required)
 
-            buffer.copy(first[1],first[0],count - required,copied)
+            first[1].copy(buffer, count - required, first[0], first[0] + copied)
 
             if(left == copied)
             {
