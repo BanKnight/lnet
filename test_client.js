@@ -11,7 +11,6 @@ async function test()
         console.log("connect ok")
 
         client.send("hello server")
-
         client.send("quit")
     }
     catch(error)

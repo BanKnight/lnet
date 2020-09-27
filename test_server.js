@@ -19,11 +19,10 @@ async function test()
             while(true)
             {
                 const buffer = await client.read()
-        
                 const cmd = buffer.toString("utf8")
-        
+                
                 console.log("recieve cmd :",cmd)
-        
+    
                 if(cmd.indexOf("quit") == 0)
                 {
                     break
@@ -38,7 +37,6 @@ async function test()
         finally
         {
             console.log("client quit")
-
             client.close()    
         }
     }
