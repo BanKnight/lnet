@@ -228,12 +228,12 @@ class Connection
     }
 
     /**
-     * count > 0:read count buffer
-     * == 0 : read any 
+     * count > 0:recv count buffer
+     * == 0 : recv any 
      * < 0:all left
      * @param {读取的数量} count 
      */
-    async read(count = 0)
+    async recv(count = 0)
     {
         if(this.last_error)
         {

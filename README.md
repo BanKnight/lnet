@@ -19,7 +19,7 @@ for(let i = 0; i < 3;++i)
 
         while(true)
         {
-            const buffer = await client.read()
+            const buffer = await client.recv()
     
             const cmd = buffer.toString("utf8")
     

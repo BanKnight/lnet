@@ -18,7 +18,7 @@ async function test()
 
             while(true)
             {
-                const buffer = await client.read()
+                const buffer = await client.recv()
                 const cmd = buffer.toString("utf8")
                 
                 console.log("recieve cmd :",cmd)
